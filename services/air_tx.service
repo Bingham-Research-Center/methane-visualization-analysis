@@ -1,0 +1,17 @@
+[Unit]
+Description=Air-side methane telemetry (RFD900ux)
+After=multi-user.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/python3 /home/pi/air_tx_pi5.py
+Restart=on-failure
+RestartSec=3
+Environment=AIRSERIALPORT=/dev/serial0
+Environment=AIRBAUD=57600
+Environment=AIRPERIODS=0.5
+
+[Install]
+WantedBy=multi-user.target

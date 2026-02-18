@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__/
+*.pyc
+
+.venv/
+.venv-ground/
+
+methane_log.csv
+ground_methane_log.csv
