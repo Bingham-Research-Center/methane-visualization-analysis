@@ -12,6 +12,7 @@ import collections
 import csv
 import logging
 import os
+import signal
 import sys
 import time
 
@@ -34,6 +35,13 @@ METHANE_MAX = float(os.environ.get("METHANEVAL_MAX", "10000"))
 
 
 def main() -> None:
+    def signal_handler(sig, frame):
+        logger.info("Shutting down gracefully...")
+        plt.close('all')
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
         ser = serial.Serial(PORT, BAUD, timeout=1)
     except serial.SerialException as e:
