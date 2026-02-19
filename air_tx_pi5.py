@@ -32,10 +32,11 @@ def read_methane() -> float:
 
 def main() -> None:
     ser = serial.Serial(SERIAL_PORT, BAUD, timeout=1)
+    file_is_new = not os.path.exists(LOG_CSV)
     f = open(LOG_CSV, "a", newline="", encoding="utf-8")
     writer = csv.writer(f)
 
-    if f.tell() == 0:
+    if file_is_new:
         writer.writerow(["timestamp_s", "methane_value"])
         f.flush()
 

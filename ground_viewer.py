@@ -25,10 +25,11 @@ WINDOW_SECONDS = int(os.environ.get("GROUNDWINDOWS", "300"))
 
 def main() -> None:
     ser = serial.Serial(PORT, BAUD, timeout=1)
+    file_is_new = not os.path.exists(MIRROR_CSV)
     mirror = open(MIRROR_CSV, "a", newline="", encoding="utf-8")
     writer = csv.writer(mirror)
 
-    if mirror.tell() == 0:
+    if file_is_new:
         writer.writerow(["timestamp_s", "methane_value"])
         mirror.flush()
 
