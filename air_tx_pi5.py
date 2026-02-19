@@ -44,6 +44,12 @@ def main() -> None:
     except serial.SerialException as e:
         logger.error("Cannot open serial port %s: %s", SERIAL_PORT, e)
         sys.exit(1)
+
+    if not ser.is_open:
+        logger.error("Serial port %s is not open after initialisation", SERIAL_PORT)
+        sys.exit(1)
+    logger.info("Serial port %s opened successfully at %d baud", SERIAL_PORT, BAUD)
+
     file_is_new = not os.path.exists(LOG_CSV)
     f = open(LOG_CSV, "a", newline="", encoding="utf-8")
     writer = csv.writer(f)
