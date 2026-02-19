@@ -47,48 +47,46 @@ def main() -> None:
 
     if not ser.is_open:
         logger.error("Serial port %s is not open after initialisation", SERIAL_PORT)
+        ser.close()
         sys.exit(1)
     logger.info("Serial port %s opened successfully at %d baud", SERIAL_PORT, BAUD)
 
     file_is_new = not os.path.exists(LOG_CSV)
-    f = open(LOG_CSV, "a", newline="", encoding="utf-8")
-    writer = csv.writer(f)
+    with ser, open(LOG_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
 
-    if file_is_new:
-        writer.writerow(["timestamp_s", "methane_value"])
-        f.flush()
-
-    try:
-        next_reading = time.time()
-        while True:
-            ts = time.time()
-            try:
-                val = read_methane()
-            except (ValueError, OSError) as e:
-                logger.warning("Sensor read failed, skipping iteration: %s", e)
-                next_reading += PERIOD_S
-                time.sleep(max(0, next_reading - time.time()))
-                continue
-
-            # 1) Local authoritative log
-            writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
+        if file_is_new:
+            writer.writerow(["timestamp_s", "methane_value"])
             f.flush()
 
-            # 2) Live stream over telemetry link
-            line = f"{ts:.3f},{val:.6f}\n"
-            try:
-                ser.write(line.encode("utf-8"))
-                ser.flush()
-            except serial.SerialException as e:
-                logger.warning("Serial write failed (radio link may be down): %s", e)
+        try:
+            next_reading = time.time()
+            while True:
+                ts = time.time()
+                try:
+                    val = read_methane()
+                except (ValueError, OSError) as e:
+                    logger.warning("Sensor read failed, skipping iteration: %s", e)
+                    next_reading += PERIOD_S
+                    time.sleep(max(0, next_reading - time.time()))
+                    continue
 
-            next_reading += PERIOD_S
-            time.sleep(max(0, next_reading - time.time()))
-    except KeyboardInterrupt:
-        pass
-    finally:
-        f.close()
-        ser.close()
+                # 1) Local authoritative log
+                writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
+                f.flush()
+
+                # 2) Live stream over telemetry link
+                line = f"{ts:.3f},{val:.6f}\n"
+                try:
+                    ser.write(line.encode("utf-8"))
+                    ser.flush()
+                except serial.SerialException as e:
+                    logger.warning("Serial write failed (radio link may be down): %s", e)
+
+                next_reading += PERIOD_S
+                time.sleep(max(0, next_reading - time.time()))
+        except KeyboardInterrupt:
+            pass
 
 
 if __name__ == "__main__":

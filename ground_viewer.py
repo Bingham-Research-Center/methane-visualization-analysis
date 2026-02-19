@@ -40,78 +40,76 @@ def main() -> None:
 
     if not ser.is_open:
         logger.error("Serial port %s is not open after initialisation", PORT)
+        ser.close()
         sys.exit(1)
     logger.info("Serial port %s opened successfully at %d baud", PORT, BAUD)
 
     file_is_new = not os.path.exists(MIRROR_CSV)
-    mirror = open(MIRROR_CSV, "a", newline="", encoding="utf-8")
-    writer = csv.writer(mirror)
+    with ser, open(MIRROR_CSV, "a", newline="", encoding="utf-8") as mirror:
+        writer = csv.writer(mirror)
 
-    if file_is_new:
-        writer.writerow(["timestamp_s", "methane_value"])
-        mirror.flush()
+        if file_is_new:
+            writer.writerow(["timestamp_s", "methane_value"])
+            mirror.flush()
 
-    data = collections.deque(maxlen=20000)
-    t0 = None
+        data = collections.deque(maxlen=20000)
+        t0 = None
 
-    fig, ax = plt.subplots(figsize=(9, 4.5))
-    (line,) = ax.plot([], [], lw=2)
-    ax.set_title("Live Methane (strip chart)")
-    ax.set_xlabel("Time (s, relative)")
-    ax.set_ylabel("Methane (units)")
+        fig, ax = plt.subplots(figsize=(9, 4.5))
+        (line,) = ax.plot([], [], lw=2)
+        ax.set_title("Live Methane (strip chart)")
+        ax.set_xlabel("Time (s, relative)")
+        ax.set_ylabel("Methane (units)")
 
-    def update(_frame):
-        nonlocal t0
+        def update(_frame):
+            nonlocal t0
 
-        # Drain available serial input each frame.
-        try:
-            while ser.in_waiting:
-                raw = ser.readline().decode("utf-8", errors="ignore").strip()
-                if not raw:
-                    continue
+            # Drain available serial input each frame.
+            try:
+                while ser.in_waiting:
+                    raw = ser.readline().decode("utf-8", errors="ignore").strip()
+                    if not raw:
+                        continue
 
-                parts = raw.split(",")
-                if len(parts) != 2:
-                    continue
+                    parts = raw.split(",")
+                    if len(parts) != 2:
+                        continue
 
-                try:
-                    ts = float(parts[0])
-                    val = float(parts[1])
-                except ValueError:
-                    continue
+                    try:
+                        ts = float(parts[0])
+                        val = float(parts[1])
+                    except ValueError:
+                        continue
 
-                if t0 is None:
-                    t0 = ts
+                    if t0 is None:
+                        t0 = ts
 
-                data.append((ts - t0, val))
-                writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
-                mirror.flush()
-        except serial.SerialException as e:
-            logger.warning("Serial read error (radio link may be interrupted): %s", e)
+                    data.append((ts - t0, val))
+                    writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
+                    mirror.flush()
+            except serial.SerialException as e:
+                logger.warning("Serial read error (radio link may be interrupted): %s", e)
 
-        if not data:
+            if not data:
+                return (line,)
+
+            tmax = data[-1][0]
+            while data and (tmax - data[0][0]) > WINDOW_SECONDS:
+                data.popleft()
+
+            xs = [p[0] for p in data]
+            ys = [p[1] for p in data]
+            line.set_data(xs, ys)
+            ax.set_xlim(max(0, tmax - WINDOW_SECONDS), tmax + 2)
+
+            ymin, ymax = min(ys), max(ys)
+            pad = max(1e-6, (ymax - ymin) * 0.1)
+            ax.set_ylim(ymin - pad, ymax + pad)
             return (line,)
 
-        tmax = data[-1][0]
-        while data and (tmax - data[0][0]) > WINDOW_SECONDS:
-            data.popleft()
-
-        xs = [p[0] for p in data]
-        ys = [p[1] for p in data]
-        line.set_data(xs, ys)
-        ax.set_xlim(max(0, tmax - WINDOW_SECONDS), tmax + 2)
-
-        ymin, ymax = min(ys), max(ys)
-        pad = max(1e-6, (ymax - ymin) * 0.1)
-        ax.set_ylim(ymin - pad, ymax + pad)
-        return (line,)
-
-    animation.FuncAnimation(fig, update, interval=200)
-    plt.tight_layout()
-    plt.show()
-
-    mirror.close()
-    ser.close()
+        animation.FuncAnimation(fig, update, interval=200)
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == "__main__":
