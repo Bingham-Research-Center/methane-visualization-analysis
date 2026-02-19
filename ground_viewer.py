@@ -83,12 +83,14 @@ def main() -> None:
 
                     parts = raw.split(",")
                     if len(parts) != 2:
+                        logger.debug("Malformed packet: %s", raw)
                         continue
 
                     try:
                         ts = float(parts[0])
                         val = float(parts[1])
                     except ValueError:
+                        logger.debug("Unparseable packet values: %s", raw)
                         continue
 
                     if not (METHANE_MIN <= val <= METHANE_MAX):
