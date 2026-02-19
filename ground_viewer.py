@@ -105,6 +105,9 @@ def main() -> None:
 
             xs = [p[0] for p in data]
             ys = [p[1] for p in data]
+            if not ys:
+                ax.set_ylim(-1, 1)
+                return (line,)
             line.set_data(xs, ys)
             ax.set_xlim(max(0, tmax - WINDOW_SECONDS), tmax + 2)
 
