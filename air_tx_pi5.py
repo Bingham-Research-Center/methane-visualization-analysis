@@ -63,7 +63,7 @@ def main() -> None:
         while True:
             ts = time.time()
             try:
-                val = float(read_methane())
+                val = read_methane()
             except (ValueError, OSError) as e:
                 logger.warning("Sensor read failed, skipping iteration: %s", e)
                 next_reading += PERIOD_S
