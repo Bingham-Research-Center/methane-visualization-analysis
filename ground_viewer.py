@@ -29,6 +29,8 @@ PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
 BAUD = int(os.environ.get("GROUNDBAUD", "57600"))
 MIRROR_CSV = os.environ.get("GROUNDMIRROR", "ground_methane_log.csv")
 WINDOW_SECONDS = int(os.environ.get("GROUNDWINDOWS", "300"))
+METHANE_MIN = float(os.environ.get("METHANEVAL_MIN", "0"))
+METHANE_MAX = float(os.environ.get("METHANEVAL_MAX", "10000"))
 
 
 def main() -> None:
@@ -79,6 +81,10 @@ def main() -> None:
                         ts = float(parts[0])
                         val = float(parts[1])
                     except ValueError:
+                        continue
+
+                    if not (METHANE_MIN <= val <= METHANE_MAX):
+                        logger.debug("Methane value out of expected range: %f", val)
                         continue
 
                     if t0 is None:

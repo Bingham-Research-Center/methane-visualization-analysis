@@ -27,6 +27,8 @@ SERIAL_PORT = os.environ.get("AIRSERIALPORT", "/dev/serial0")
 BAUD = int(os.environ.get("AIRBAUD", "57600"))
 LOG_CSV = os.environ.get("AIRLOGCSV", "methane_log.csv")
 PERIOD_S = float(os.environ.get("AIRPERIODS", "0.5"))
+METHANE_MIN = float(os.environ.get("METHANEVAL_MIN", "0"))
+METHANE_MAX = float(os.environ.get("METHANEVAL_MAX", "10000"))
 
 
 def read_methane() -> float:
@@ -67,6 +69,12 @@ def main() -> None:
                     val = read_methane()
                 except (ValueError, OSError) as e:
                     logger.warning("Sensor read failed, skipping iteration: %s", e)
+                    next_reading += PERIOD_S
+                    time.sleep(max(0, next_reading - time.time()))
+                    continue
+
+                if not (METHANE_MIN <= val <= METHANE_MAX):
+                    logger.debug("Methane value out of expected range: %f", val)
                     next_reading += PERIOD_S
                     time.sleep(max(0, next_reading - time.time()))
                     continue
