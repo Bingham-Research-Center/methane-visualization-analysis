@@ -8,12 +8,20 @@ Behavior matches the project docs:
 """
 
 import csv
+import logging
 import math
 import os
 import random
+import sys
 import time
 
 import serial
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("air_tx")
 
 SERIAL_PORT = os.environ.get("AIRSERIALPORT", "/dev/serial0")
 BAUD = int(os.environ.get("AIRBAUD", "57600"))
@@ -31,7 +39,11 @@ def read_methane() -> float:
 
 
 def main() -> None:
-    ser = serial.Serial(SERIAL_PORT, BAUD, timeout=1)
+    try:
+        ser = serial.Serial(SERIAL_PORT, BAUD, timeout=1)
+    except serial.SerialException as e:
+        logger.error("Cannot open serial port %s: %s", SERIAL_PORT, e)
+        sys.exit(1)
     file_is_new = not os.path.exists(LOG_CSV)
     f = open(LOG_CSV, "a", newline="", encoding="utf-8")
     writer = csv.writer(f)
@@ -43,7 +55,12 @@ def main() -> None:
     try:
         while True:
             ts = time.time()
-            val = float(read_methane())
+            try:
+                val = float(read_methane())
+            except (ValueError, OSError) as e:
+                logger.warning("Sensor read failed, skipping iteration: %s", e)
+                time.sleep(PERIOD_S)
+                continue
 
             # 1) Local authoritative log
             writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
@@ -51,8 +68,11 @@ def main() -> None:
 
             # 2) Live stream over telemetry link
             line = f"{ts:.3f},{val:.6f}\n"
-            ser.write(line.encode("utf-8"))
-            ser.flush()
+            try:
+                ser.write(line.encode("utf-8"))
+                ser.flush()
+            except serial.SerialException as e:
+                logger.warning("Serial write failed (radio link may be down): %s", e)
 
             time.sleep(PERIOD_S)
     except KeyboardInterrupt:

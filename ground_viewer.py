@@ -10,12 +10,19 @@ Behavior matches the project docs:
 
 import collections
 import csv
+import logging
 import os
 import sys
 
 import matplotlib.animation as animation
 import matplotlib.pyplot as plt
 import serial
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+logger = logging.getLogger("ground_viewer")
 
 PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
 BAUD = int(os.environ.get("GROUNDBAUD", "57600"))
@@ -24,7 +31,11 @@ WINDOW_SECONDS = int(os.environ.get("GROUNDWINDOWS", "300"))
 
 
 def main() -> None:
-    ser = serial.Serial(PORT, BAUD, timeout=1)
+    try:
+        ser = serial.Serial(PORT, BAUD, timeout=1)
+    except serial.SerialException as e:
+        logger.error("Cannot open serial port %s: %s", PORT, e)
+        sys.exit(1)
     file_is_new = not os.path.exists(MIRROR_CSV)
     mirror = open(MIRROR_CSV, "a", newline="", encoding="utf-8")
     writer = csv.writer(mirror)
@@ -46,27 +57,30 @@ def main() -> None:
         nonlocal t0
 
         # Drain available serial input each frame.
-        while ser.in_waiting:
-            raw = ser.readline().decode("utf-8", errors="ignore").strip()
-            if not raw:
-                continue
+        try:
+            while ser.in_waiting:
+                raw = ser.readline().decode("utf-8", errors="ignore").strip()
+                if not raw:
+                    continue
 
-            parts = raw.split(",")
-            if len(parts) != 2:
-                continue
+                parts = raw.split(",")
+                if len(parts) != 2:
+                    continue
 
-            try:
-                ts = float(parts[0])
-                val = float(parts[1])
-            except ValueError:
-                continue
+                try:
+                    ts = float(parts[0])
+                    val = float(parts[1])
+                except ValueError:
+                    continue
 
-            if t0 is None:
-                t0 = ts
+                if t0 is None:
+                    t0 = ts
 
-            data.append((ts - t0, val))
-            writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
-            mirror.flush()
+                data.append((ts - t0, val))
+                writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
+                mirror.flush()
+        except serial.SerialException as e:
+            logger.warning("Serial read error (radio link may be interrupted): %s", e)
 
         if not data:
             return (line,)
