@@ -53,13 +53,15 @@ def main() -> None:
         f.flush()
 
     try:
+        next_reading = time.time()
         while True:
             ts = time.time()
             try:
                 val = float(read_methane())
             except (ValueError, OSError) as e:
                 logger.warning("Sensor read failed, skipping iteration: %s", e)
-                time.sleep(PERIOD_S)
+                next_reading += PERIOD_S
+                time.sleep(max(0, next_reading - time.time()))
                 continue
 
             # 1) Local authoritative log
@@ -74,7 +76,8 @@ def main() -> None:
             except serial.SerialException as e:
                 logger.warning("Serial write failed (radio link may be down): %s", e)
 
-            time.sleep(PERIOD_S)
+            next_reading += PERIOD_S
+            time.sleep(max(0, next_reading - time.time()))
     except KeyboardInterrupt:
         pass
     finally:
