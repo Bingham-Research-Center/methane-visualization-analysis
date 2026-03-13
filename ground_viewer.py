@@ -30,14 +30,15 @@ PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
 BAUD = int(os.environ.get("GROUNDBAUD", "57600"))
 MIRROR_CSV = os.environ.get("GROUNDMIRROR", "ground_methane_log.csv")
 WINDOW_SECONDS = int(os.environ.get("GROUNDWINDOWS", "300"))
+FLUSH_SECONDS = float(os.environ.get("GROUNDFLUSHSEC", "1.0"))
 METHANE_MIN = float(os.environ.get("METHANEVAL_MIN", "0"))
 METHANE_MAX = float(os.environ.get("METHANEVAL_MAX", "10000"))
 
 
 def main() -> None:
-    def signal_handler(sig, frame):
+    def signal_handler(_sig, _frame):
         logger.info("Shutting down gracefully...")
-        plt.close('all')
+        plt.close("all")
         sys.exit(0)
 
     signal.signal(signal.SIGINT, signal_handler)
@@ -64,6 +65,7 @@ def main() -> None:
 
         data = collections.deque(maxlen=20000)
         t0 = None
+        last_flush = time.monotonic()
 
         fig, ax = plt.subplots(figsize=(9, 4.5))
         (line,) = ax.plot([], [], lw=2)
@@ -72,9 +74,7 @@ def main() -> None:
         ax.set_ylabel("Methane (units)")
 
         def update(_frame):
-            nonlocal t0
-
-            # Drain available serial input each frame.
+            nonlocal t0, last_flush
             try:
                 while ser.in_waiting:
                     raw = ser.readline().decode("utf-8", errors="ignore").strip()
@@ -102,9 +102,14 @@ def main() -> None:
 
                     data.append((ts - t0, val))
                     writer.writerow([f"{ts:.3f}", f"{val:.6f}"])
-                    mirror.flush()
             except serial.SerialException as e:
                 logger.warning("Serial read error (radio link may be interrupted): %s", e)
+
+            if FLUSH_SECONDS > 0:
+                now = time.monotonic()
+                if (now - last_flush) >= FLUSH_SECONDS:
+                    mirror.flush()
+                    last_flush = now
 
             if not data:
                 return (line,)
@@ -126,9 +131,12 @@ def main() -> None:
             ax.set_ylim(ymin - pad, ymax + pad)
             return (line,)
 
-        animation.FuncAnimation(fig, update, interval=200)
+        anim = animation.FuncAnimation(fig, update, interval=200)
         plt.tight_layout()
-        plt.show()
+        try:
+            plt.show()
+        finally:
+            mirror.flush()
 
 
 if __name__ == "__main__":
