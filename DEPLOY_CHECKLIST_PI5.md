@@ -10,16 +10,31 @@ From your laptop (replace `<PI_IP>`):
 scp -r "METHANE VISUALIZATION ANALYSIS NEW" pi@<PI_IP>:/home/pi/
 ```
 
-## 2) Wire Pi5 to RFD900ux (air unit)
+## 2) Connect the air-side serial devices
 
-- Pin 8 `GPIO14 TXD` -> RFD `RX`
-- Pin 10 `GPIO15 RXD` <- RFD `TX`
-- Pin 2 or 4 `5V` -> RFD `+5V`
-- Pin 6 `GND` -> RFD `GND`
+- For `BUNDLE-RFD900ux-US`, connect the RFD900ux air radio to the Pi with the included FTDI USB cable.
+- Connect the methane sensor to the Pi UART.
+- Keep the radio and sensor on separate device paths.
 
 Attach antenna(s) before powering radios.
 
-## 3) Enable UART on Pi
+Check what the Pi sees:
+
+```bash
+ls /dev/ttyUSB* /dev/ttyACM* /dev/serial* 2>/dev/null
+```
+
+Recommended mapping:
+- Radio: `/dev/ttyUSB0`
+- Sensor: `/dev/serial0`
+
+Expected sensor input format:
+
+```text
+1.234
+```
+
+## 3) Enable UART on Pi if the sensor uses `/dev/serial0`
 
 ```bash
 sudo raspi-config
@@ -40,12 +55,12 @@ pip install --upgrade pip
 pip install -r requirements-air.txt
 ```
 
-## 5) Run air transmitter manually (first test)
+## 5) Run air transmitter manually
 
 ```bash
 cd "/home/pi/METHANE VISUALIZATION ANALYSIS NEW"
 source .venv/bin/activate
-python3 air_tx_pi5.py
+AIRSERIALPORT=/dev/ttyUSB0 AIRSENSORPORT=/dev/serial0 AIRSENSORBAUD=9600 AIRSENSORTIMEOUT=0.5 python3 air_tx_pi5.py
 ```
 
 Expected output files:
@@ -86,7 +101,7 @@ systemctl status air_tx.service
 
 ## 8) Quick troubleshooting
 
-- If no telemetry appears, verify TX/RX are crossed correctly.
-- Confirm Pi serial device exists (`/dev/serial0` by default in script).
+- If no telemetry appears, verify the radio is connected on the expected USB serial device.
+- Confirm both the radio and sensor serial devices exist.
 - Keep both radios on same baud and radio params.
 - Ensure antenna is connected before transmit.

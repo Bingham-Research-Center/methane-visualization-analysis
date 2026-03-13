@@ -5,9 +5,10 @@ Air-to-ground methane telemetry pipeline for Raspberry Pi 5 + RFD900ux radios.
 ## What This Repository Does
 
 1. `air_tx_pi5.py` (air side, Raspberry Pi):
-- reads methane values (currently a placeholder generator in `read_methane()`),
+- reads methane values from a dedicated serial-connected sensor,
+- expects one numeric methane value per line from that sensor,
 - logs each reading locally to CSV,
-- transmits `timestamp_s,methane_value` packets over UART.
+- transmits `timestamp_s,methane_value` packets over a separate serial radio link.
 2. `ground_viewer.py` (ground side, laptop):
 - reads incoming serial packets from the ground radio,
 - plots a live scrolling strip chart,
@@ -22,7 +23,7 @@ Air-to-ground methane telemetry pipeline for Raspberry Pi 5 + RFD900ux radios.
 | `requirements-air.txt` | Air-side Python dependencies |
 | `requirements-ground.txt` | Ground-side Python dependencies |
 | `services/air_tx.service` | Example `systemd` service for auto-start on Pi |
-| `services/airtx.service` | Duplicate legacy service file (same content) |
+| `services/airtx.service` | Deprecated compatibility shim for legacy install scripts |
 | `DEPLOY_CHECKLIST_PI5.md` | Supplemental deployment checklist |
 | `docs/` | Wiring and quick-start reference files |
 
@@ -31,9 +32,10 @@ Air-to-ground methane telemetry pipeline for Raspberry Pi 5 + RFD900ux radios.
 ### Hardware
 
 - Raspberry Pi 5 (air side)
-- Two RFD900ux radios (air + ground)
+- RFDesign `BUNDLE-RFD900ux-US` kit or equivalent RFD900ux air/ground radio pair
 - Proper antennas attached before powering radios
-- Methane sensor integration on Pi (future; script currently uses placeholder readings)
+- Methane sensor connected to the Pi over its own serial interface
+- Two separate serial device paths on the Pi: one for the radio and one for the sensor
 
 ### Software
 
@@ -43,22 +45,42 @@ Air-to-ground methane telemetry pipeline for Raspberry Pi 5 + RFD900ux radios.
 
 ## Quick Start
 
-1. Wire Pi UART to the air radio.
-2. Enable UART on the Pi.
+1. Connect the air radio to the Pi over USB serial.
+2. Connect the methane sensor to the Pi UART.
 3. Install air-side dependencies and run `air_tx_pi5.py`.
 4. Install ground-side dependencies and run `ground_viewer.py <PORT>`.
 5. Confirm the live plot updates and both CSV logs grow.
 
 ## Air Side (Pi) Setup and Run
 
-### 1) Wire Pi 5 to RFD900ux (air radio)
+### 1) Connect air-side serial devices
 
-- Pin 8 `GPIO14 TXD` -> radio `RX`
-- Pin 10 `GPIO15 RXD` <- radio `TX`
-- Pin 2 or 4 `5V` -> radio `+5V`
-- Pin 6 `GND` -> radio `GND`
+- For `BUNDLE-RFD900ux-US`, connect the air radio to the Pi with the included FTDI USB cable so it enumerates as a USB serial device.
+- Connect the methane sensor to the Pi UART.
+- Do not place both devices on the same serial path.
 
-### 2) Enable UART on the Pi
+Check what the Pi sees:
+
+```bash
+ls /dev/ttyUSB* /dev/ttyACM* /dev/serial* 2>/dev/null
+```
+
+Recommended operational mapping:
+
+- Radio: `/dev/ttyUSB0`
+- Sensor: `/dev/serial0`
+
+Expected sensor input format:
+
+```text
+1.234
+```
+
+The air script expects one numeric methane reading per line.
+
+If your device paths differ, override them with environment variables when you run the script or in the `systemd` unit.
+
+### 2) Enable UART on the Pi if the sensor uses `/dev/serial0`
 
 ```bash
 sudo raspi-config
@@ -87,13 +109,19 @@ pip install -r requirements-air.txt
 ```bash
 cd /path/to/methane-visualization-analysis
 source .venv-air/bin/activate
-python3 air_tx_pi5.py
+AIRSERIALPORT=/dev/ttyUSB0 AIRSENSORPORT=/dev/serial0 AIRSENSORBAUD=9600 AIRSENSORTIMEOUT=0.5 python3 air_tx_pi5.py
 ```
+
+This is the current intended setup:
+
+- air radio on USB: `/dev/ttyUSB0`
+- methane sensor on Pi UART: `/dev/serial0`
 
 Expected startup log:
 
 ```text
-Serial port /dev/serial0 opened successfully at 57600 baud
+Radio serial port /dev/ttyUSB0 opened successfully at 57600 baud
+Sensor serial port /dev/serial0 opened successfully at 9600 baud
 ```
 
 Default air-side output file:
@@ -140,6 +168,8 @@ pip install -r requirements-ground.txt
 python3 ground_viewer.py /dev/ttyUSB0
 ```
 
+The ground viewer should open a live line chart and mirror valid packets into `ground_methane_log.csv`.
+
 Expected startup log:
 
 ```text
@@ -155,6 +185,7 @@ Press `Ctrl+C` in the viewer terminal to shut down gracefully.
 ## Optional: Auto-Start Air Script with systemd
 
 Use `services/air_tx.service` as the canonical unit file.
+`services/airtx.service` is retained as a deprecated compatibility filename.
 
 1) Copy service file:
 
@@ -166,8 +197,16 @@ sudo cp services/air_tx.service /etc/systemd/system/air_tx.service
 
 - `WorkingDirectory=/home/pi`
 - `ExecStart=/usr/bin/python3 /home/pi/air_tx_pi5.py`
+- `Environment=AIRSERIALPORT=...`
+- `Environment=AIRSENSORPORT=...`
+- `Environment=AIRSENSORBAUD=...`
 
-If your deployment path differs, update both values.
+The checked-in service defaults already match the current setup:
+
+- `AIRSERIALPORT=/dev/ttyUSB0`
+- `AIRSENSORPORT=/dev/serial0`
+
+If your deployment path or device paths differ, update those values before enabling the service.
 
 3) Reload and start:
 
@@ -198,17 +237,20 @@ Environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `AIRSERIALPORT` | `/dev/serial0` | UART device to transmit telemetry |
+| `AIRSERIALPORT` | `/dev/ttyUSB0` | Serial device used for the radio telemetry link |
 | `AIRBAUD` | `57600` | Serial baud rate |
+| `AIRSENSORPORT` | required | Serial device used for the methane sensor input |
+| `AIRSENSORBAUD` | `9600` | Methane sensor serial baud rate |
+| `AIRSENSORTIMEOUT` | `AIRPERIODS` | Sensor serial read timeout in seconds |
 | `AIRLOGCSV` | `methane_log.csv` | Local air-side CSV log path |
-| `AIRPERIODS` | `0.5` | Sampling/transmit period in seconds |
+| `AIRPERIODS` | `0.5` | Read/transmit loop period in seconds |
 | `METHANEVAL_MIN` | `0` | Minimum accepted methane value |
 | `METHANEVAL_MAX` | `10000` | Maximum accepted methane value |
 
 Example override:
 
 ```bash
-AIRSERIALPORT=/dev/ttyAMA0 AIRBAUD=57600 AIRPERIODS=1.0 python3 air_tx_pi5.py
+AIRSERIALPORT=/dev/ttyUSB0 AIRBAUD=57600 AIRSENSORPORT=/dev/serial0 AIRSENSORBAUD=9600 AIRSENSORTIMEOUT=0.5 AIRPERIODS=0.5 python3 air_tx_pi5.py
 ```
 
 ### `ground_viewer.py`
@@ -224,13 +266,14 @@ Environment variables:
 | `GROUNDBAUD` | `57600` | Serial baud rate |
 | `GROUNDMIRROR` | `ground_methane_log.csv` | Ground-side mirror CSV path |
 | `GROUNDWINDOWS` | `300` | Plot window width in seconds |
+| `GROUNDFLUSHSEC` | `1.0` | Periodic mirror CSV flush interval in seconds (`<=0` disables periodic flush) |
 | `METHANEVAL_MIN` | `0` | Minimum accepted methane value |
 | `METHANEVAL_MAX` | `10000` | Maximum accepted methane value |
 
 Example override:
 
 ```bash
-GROUNDBAUD=57600 GROUNDWINDOWS=120 GROUNDMIRROR=/tmp/ground.csv python3 ground_viewer.py /dev/ttyUSB0
+GROUNDBAUD=57600 GROUNDWINDOWS=120 GROUNDFLUSHSEC=0.5 GROUNDMIRROR=/tmp/ground.csv python3 ground_viewer.py /dev/ttyUSB0
 ```
 
 ## Packet Format and CSV Outputs
@@ -258,7 +301,8 @@ timestamp_s,methane_value
 - row formatting:
 - timestamp: `%.3f`
 - methane value: `%.6f`
-- each row is flushed immediately to disk
+- each row is flushed immediately to disk on air side
+- ground side flushes periodically (default every `1.0s`, configurable via `GROUNDFLUSHSEC`)
 
 ## Smoke Tests (Recommended)
 
@@ -276,19 +320,21 @@ tail -f methane_log.csv
 tail -f ground_methane_log.csv
 ```
 
+Ground writes may appear in short batches based on `GROUNDFLUSHSEC`.
+
 5. Verify values are within expected range and timestamps advance steadily.
 
 ## Troubleshooting
 
 No data appears in viewer:
 
-- verify TX/RX wiring is crossed correctly
+- verify the air radio is connected on the expected serial device
 - verify both radios share matching serial/radio settings
 - confirm correct ground serial port is used
 
 `Cannot open serial port` error:
 
-- ensure port exists (`/dev/serial0`, `/dev/ttyUSB0`, `COMx`, etc.)
+- ensure both the radio port and sensor port exist (`/dev/serial0`, `/dev/ttyUSB0`, `COMx`, etc.)
 - ensure no other process is holding the port
 - check permissions on Linux (`dialout` group may be required)
 
@@ -296,12 +342,14 @@ Plot opens but no points appear:
 
 - packets may be malformed or filtered by min/max bounds
 - confirm radio link quality and antenna connection
+- confirm the methane sensor is sending one numeric value per line
 
 Service fails to start:
 
 - check `systemctl status air_tx.service`
 - inspect logs `journalctl -u air_tx.service -e`
 - verify `ExecStart` path and Python environment on Pi
+- verify `AIRSERIALPORT` and `AIRSENSORPORT` point at the correct devices
 
 ## Supplemental Documentation
 
