@@ -86,8 +86,8 @@ def main() -> None:
             fh.flush()
         return fh, wr
 
-    f, writer = open_csv(LOG_CSV)
     with radio_ser, sensor_ser:
+        f, writer = open_csv(LOG_CSV)
         try:
             next_reading = time.monotonic()
             while True:
@@ -120,8 +120,11 @@ def main() -> None:
                         f.close()
                         stem, ext = os.path.splitext(LOG_CSV)
                         rotated = f"{stem}_{time.strftime('%Y%m%d_%H%M%S')}{ext}"
-                        os.rename(LOG_CSV, rotated)
-                        logger.info("Rotated log to %s", rotated)
+                        try:
+                            os.rename(LOG_CSV, rotated)
+                            logger.info("Rotated log to %s", rotated)
+                        except OSError as e:
+                            logger.warning("Log rotation failed: %s", e)
                         f, writer = open_csv(LOG_CSV)
 
                 next_reading += PERIOD_S
