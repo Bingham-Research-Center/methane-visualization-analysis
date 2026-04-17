@@ -26,7 +26,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ground_viewer")
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
 BAUD = int(os.environ.get("GROUNDBAUD", "57600"))
 MIRROR_CSV = os.environ.get("GROUNDMIRROR", "ground_methane_log.csv")
 WINDOW_SECONDS = int(os.environ.get("GROUNDWINDOWS", "300"))
@@ -36,6 +35,11 @@ METHANE_MAX = float(os.environ.get("METHANEVAL_MAX", "10000"))
 
 
 def main() -> None:
+    if len(sys.argv) < 2:
+        print("Usage: ground_viewer.py <PORT>  (e.g. COM7, /dev/ttyUSB0)", file=sys.stderr)
+        sys.exit(1)
+    port = sys.argv[1]
+
     def signal_handler(_sig, _frame):
         logger.info("Shutting down gracefully...")
         plt.close("all")
@@ -44,16 +48,16 @@ def main() -> None:
     signal.signal(signal.SIGINT, signal_handler)
 
     try:
-        ser = serial.Serial(PORT, BAUD, timeout=1)
+        ser = serial.Serial(port, BAUD, timeout=1)
     except serial.SerialException as e:
-        logger.error("Cannot open serial port %s: %s", PORT, e)
+        logger.error("Cannot open serial port %s: %s", port, e)
         sys.exit(1)
 
     if not ser.is_open:
-        logger.error("Serial port %s is not open after initialisation", PORT)
+        logger.error("Serial port %s is not open after initialisation", port)
         ser.close()
         sys.exit(1)
-    logger.info("Serial port %s opened successfully at %d baud", PORT, BAUD)
+    logger.info("Serial port %s opened successfully at %d baud", port, BAUD)
 
     file_is_new = not os.path.exists(MIRROR_CSV)
     with ser, open(MIRROR_CSV, "a", newline="", encoding="utf-8") as mirror:

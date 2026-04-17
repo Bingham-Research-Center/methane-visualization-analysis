@@ -32,6 +32,7 @@ PERIOD_S = float(os.environ.get("AIRPERIODS", "0.5"))
 SENSOR_TIMEOUT_S = float(os.environ.get("AIRSENSORTIMEOUT", str(PERIOD_S)))
 METHANE_MIN = float(os.environ.get("METHANEVAL_MIN", "0"))
 METHANE_MAX = float(os.environ.get("METHANEVAL_MAX", "10000"))
+LOG_MAX_BYTES = int(os.environ.get("AIRLOGMAXBYTES", str(10 * 1024 * 1024)))
 
 
 def open_serial(port: str, baud: int, timeout: float, label: str) -> serial.Serial:
@@ -76,32 +77,30 @@ def main() -> None:
     radio_ser = open_serial(RADIO_SERIAL_PORT, RADIO_BAUD, 1.0, "Radio")
     sensor_ser = open_serial(SENSOR_SERIAL_PORT, SENSOR_BAUD, SENSOR_TIMEOUT_S, "Sensor")
 
-    file_is_new = not os.path.exists(LOG_CSV)
-    with radio_ser, sensor_ser, open(LOG_CSV, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
+    def open_csv(path):
+        is_new = not os.path.exists(path)
+        fh = open(path, "a", newline="", encoding="utf-8")
+        wr = csv.writer(fh)
+        if is_new:
+            wr.writerow(["timestamp_s", "methane_value"])
+            fh.flush()
+        return fh, wr
 
-        if file_is_new:
-            writer.writerow(["timestamp_s", "methane_value"])
-            f.flush()
-
+    with radio_ser, sensor_ser:
+        f, writer = open_csv(LOG_CSV)
         try:
-            next_reading = time.time()
+            next_reading = time.monotonic()
             while True:
                 try:
                     val = read_methane(sensor_ser)
                 except TimeoutError:
                     next_reading += PERIOD_S
-                    time.sleep(max(0, next_reading - time.time()))
+                    time.sleep(max(0, next_reading - time.monotonic()))
                     continue
-                except serial.SerialException as e:
-                    logger.warning("Sensor serial read failed, skipping iteration: %s", e)
-                    next_reading += PERIOD_S
-                    time.sleep(max(0, next_reading - time.time()))
-                    continue
-                except (ValueError, OSError) as e:
+                except (serial.SerialException, ValueError, OSError) as e:
                     logger.warning("Sensor read failed, skipping iteration: %s", e)
                     next_reading += PERIOD_S
-                    time.sleep(max(0, next_reading - time.time()))
+                    time.sleep(max(0, next_reading - time.monotonic()))
                     continue
 
                 ts = time.time()
@@ -117,10 +116,23 @@ def main() -> None:
                     except serial.SerialException as e:
                         logger.warning("Serial write failed (radio link may be down): %s", e)
 
+                    if LOG_MAX_BYTES > 0 and f.tell() >= LOG_MAX_BYTES:
+                        f.close()
+                        stem, ext = os.path.splitext(LOG_CSV)
+                        rotated = f"{stem}_{time.strftime('%Y%m%d_%H%M%S')}{ext}"
+                        try:
+                            os.rename(LOG_CSV, rotated)
+                            logger.info("Rotated log to %s", rotated)
+                        except OSError as e:
+                            logger.warning("Log rotation failed: %s", e)
+                        f, writer = open_csv(LOG_CSV)
+
                 next_reading += PERIOD_S
-                time.sleep(max(0, next_reading - time.time()))
+                time.sleep(max(0, next_reading - time.monotonic()))
         except KeyboardInterrupt:
-            pass
+            logger.info("Shutting down")
+        finally:
+            f.close()
 
 
 if __name__ == "__main__":
