@@ -26,7 +26,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ground_viewer")
 
-PORT = sys.argv[1] if len(sys.argv) > 1 else "COM7"
+if len(sys.argv) < 2:
+    print("Usage: ground_viewer.py <PORT>  (e.g. COM7, /dev/ttyUSB0)", file=sys.stderr)
+    sys.exit(1)
+PORT = sys.argv[1]
 BAUD = int(os.environ.get("GROUNDBAUD", "57600"))
 MIRROR_CSV = os.environ.get("GROUNDMIRROR", "ground_methane_log.csv")
 WINDOW_SECONDS = int(os.environ.get("GROUNDWINDOWS", "300"))

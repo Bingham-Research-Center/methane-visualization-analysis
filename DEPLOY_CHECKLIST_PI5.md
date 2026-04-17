@@ -7,7 +7,7 @@ Use this once the Pi and RFD900ux hardware arrive.
 From your laptop (replace `<PI_IP>`):
 
 ```bash
-scp -r "METHANE VISUALIZATION ANALYSIS NEW" pi@<PI_IP>:/home/pi/
+scp -r methane-visualization-analysis pi@<PI_IP>:/home/pi/
 ```
 
 ## 2) Connect the air-side serial devices
@@ -48,7 +48,7 @@ sudo raspi-config
 ## 4) Install runtime deps on Pi (air side)
 
 ```bash
-cd "/home/pi/METHANE VISUALIZATION ANALYSIS NEW"
+cd /home/pi/methane-visualization-analysis
 python3 -m venv .venv
 source .venv/bin/activate
 pip install --upgrade pip
@@ -58,7 +58,7 @@ pip install -r requirements-air.txt
 ## 5) Run air transmitter manually
 
 ```bash
-cd "/home/pi/METHANE VISUALIZATION ANALYSIS NEW"
+cd /home/pi/methane-visualization-analysis
 source .venv/bin/activate
 AIRSERIALPORT=/dev/ttyUSB0 AIRSENSORPORT=/dev/serial0 AIRSENSORBAUD=9600 AIRSENSORTIMEOUT=0.5 python3 air_tx_pi5.py
 ```
@@ -71,7 +71,7 @@ Expected output files:
 On your laptop:
 
 ```bash
-cd "METHANE VISUALIZATION ANALYSIS NEW"
+cd methane-visualization-analysis
 python3 -m venv .venv-ground
 source .venv-ground/bin/activate
 pip install --upgrade pip
@@ -87,7 +87,7 @@ Examples for `<PORT>`:
 ## 7) Optional autostart service on Pi
 
 ```bash
-cd "/home/pi/METHANE VISUALIZATION ANALYSIS NEW"
+cd /home/pi/methane-visualization-analysis
 sudo cp services/air_tx.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now air_tx.service

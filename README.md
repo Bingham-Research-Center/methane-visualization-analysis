@@ -23,7 +23,6 @@ Air-to-ground methane telemetry pipeline for Raspberry Pi 5 + RFD900ux radios.
 | `requirements-air.txt` | Air-side Python dependencies |
 | `requirements-ground.txt` | Ground-side Python dependencies |
 | `services/air_tx.service` | Example `systemd` service for auto-start on Pi |
-| `services/airtx.service` | Deprecated compatibility shim for legacy install scripts |
 | `DEPLOY_CHECKLIST_PI5.md` | Supplemental deployment checklist |
 | `docs/` | Wiring and quick-start reference files |
 
@@ -98,8 +97,8 @@ Then reboot.
 
 ```bash
 cd /path/to/methane-visualization-analysis
-python3 -m venv .venv-air
-source .venv-air/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -r requirements-air.txt
 ```
@@ -108,7 +107,7 @@ pip install -r requirements-air.txt
 
 ```bash
 cd /path/to/methane-visualization-analysis
-source .venv-air/bin/activate
+source .venv/bin/activate
 AIRSERIALPORT=/dev/ttyUSB0 AIRSENSORPORT=/dev/serial0 AIRSENSORBAUD=9600 AIRSENSORTIMEOUT=0.5 python3 air_tx_pi5.py
 ```
 
@@ -130,7 +129,7 @@ Default air-side output file:
 
 ## Ground Side (Viewer) Setup and Run
 
-`ground_viewer.py` requires a serial port argument or it defaults to `COM7`.
+`ground_viewer.py` requires a serial port argument.
 
 ### Find the serial port
 
@@ -184,8 +183,7 @@ Press `Ctrl+C` in the viewer terminal to shut down gracefully.
 
 ## Optional: Auto-Start Air Script with systemd
 
-Use `services/air_tx.service` as the canonical unit file.
-`services/airtx.service` is retained as a deprecated compatibility filename.
+Use `services/air_tx.service` as the unit file.
 
 1) Copy service file:
 
@@ -246,6 +244,7 @@ Environment variables:
 | `AIRPERIODS` | `0.5` | Read/transmit loop period in seconds |
 | `METHANEVAL_MIN` | `0` | Minimum accepted methane value |
 | `METHANEVAL_MAX` | `10000` | Maximum accepted methane value |
+| `AIRLOGMAXBYTES` | `10485760` | Max CSV size in bytes before rotation (`0` disables) |
 
 Example override:
 
@@ -257,7 +256,7 @@ AIRSERIALPORT=/dev/ttyUSB0 AIRBAUD=57600 AIRSENSORPORT=/dev/serial0 AIRSENSORBAU
 
 CLI arguments:
 
-- `PORT` (optional): serial device (defaults to `COM7` if omitted)
+- `PORT` (required): serial device (e.g. `COM7`, `/dev/ttyUSB0`)
 
 Environment variables:
 
