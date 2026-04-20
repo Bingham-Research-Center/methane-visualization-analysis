@@ -42,15 +42,42 @@ Air-to-ground methane telemetry pipeline for Raspberry Pi 5 + RFD900ux radios.
 - `pip` and `venv`
 - Desktop environment on ground machine for `matplotlib` live plot window
 
-## Quick Start
+## Quick Run
 
-1. Connect the air radio to the Pi over USB serial.
-2. Connect the methane sensor to the Pi UART.
-3. Install air-side dependencies and run `air_tx_pi5.py`.
-4. Install ground-side dependencies and run `ground_viewer.py <PORT>`.
-5. Confirm the live plot updates and both CSV logs grow.
+Wrappers hide the manual venv/env-var commands. Use these after copying the repo to the target machine.
 
-## Air Side (Pi) Setup and Run
+**Pi (one-time per SD card, fully offline):**
+
+```bash
+cd /home/<user>/methane-visualization-analysis
+sudo ./install_pi.sh
+```
+
+Creates the venv, installs `pyserial` from the vendored wheels in `vendor/wheels/`, and registers a systemd service so every reboot auto-starts the air transmitter. No network needed on the Pi.
+
+**Ground viewer (Linux/macOS):**
+
+```bash
+./run_ground.sh /dev/ttyUSB0
+```
+
+**Ground viewer (Windows PowerShell):**
+
+```powershell
+.\run_ground.ps1 -Port COM7
+```
+
+Override any environment variable by setting it before the command:
+
+```bash
+AIRSERIALPORT=/dev/ttyUSB1 ./run_air.sh
+```
+
+Every wrapper accepts `--help` (or `-Help` on PowerShell) for the full list of supported environment variables.
+
+## Manual Air Side Setup (advanced)
+
+The steps below are the fallback for unusual environments and for understanding what `install_pi.sh` does under the hood. For the normal Pi deploy, use `sudo ./install_pi.sh` and skip this section.
 
 ### 1) Connect air-side serial devices
 
@@ -127,7 +154,9 @@ Default air-side output file:
 
 - `methane_log.csv` in current working directory
 
-## Ground Side (Viewer) Setup and Run
+## Manual Ground Side Setup (advanced)
+
+The steps below are the fallback for unusual environments. For the normal laptop workflow, use `./run_ground.sh <PORT>` (Linux/macOS) or `.\run_ground.ps1 -Port <COMx>` (Windows) and skip this section.
 
 `ground_viewer.py` requires a serial port argument.
 
@@ -183,7 +212,9 @@ Press `Ctrl+C` in the viewer terminal to shut down gracefully.
 
 ## Optional: Auto-Start Air Script with systemd
 
-Use `services/air_tx.service` as the unit file.
+`install_pi.sh` already sets this up for you; the steps below are for reference or for manual installs on a system where you'd rather not run the installer.
+
+Use `services/air_tx.service` as the unit file (it's a template with `@REPO_DIR@` and `@SERVICE_USER@` placeholders that the installer substitutes).
 
 1) Copy service file:
 
