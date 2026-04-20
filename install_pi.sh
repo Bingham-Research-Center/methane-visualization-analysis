@@ -63,10 +63,13 @@ sudo -u "$SERVICE_USER" "$VENV_DIR/bin/pip" install \
     -r "$REPO_DIR/requirements-air.txt"
 
 # 3) Render the systemd unit template with the real repo path + service user.
+# Uses bash string substitution (not sed) so paths containing &, \, or | do
+# not need special escaping.
 echo "Rendering systemd unit to $SERVICE_DEST ..."
-sed -e "s|@REPO_DIR@|$REPO_DIR|g" \
-    -e "s|@SERVICE_USER@|$SERVICE_USER|g" \
-    "$SERVICE_TEMPLATE" > "$SERVICE_DEST"
+template_content="$(<"$SERVICE_TEMPLATE")"
+rendered="${template_content//@REPO_DIR@/$REPO_DIR}"
+rendered="${rendered//@SERVICE_USER@/$SERVICE_USER}"
+printf '%s' "$rendered" > "$SERVICE_DEST"
 chmod 644 "$SERVICE_DEST"
 
 # 4) Make sure run_air.sh is executable (git may not preserve the bit on some copy flows).

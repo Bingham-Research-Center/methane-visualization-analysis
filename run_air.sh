@@ -83,7 +83,10 @@ export AIRSERIALPORT
 # Defaults for everything else. User-supplied values win thanks to :- expansion.
 export AIRSENSORPORT="${AIRSENSORPORT:-/dev/serial0}"
 export AIRSENSORBAUD="${AIRSENSORBAUD:-9600}"
-export AIRSENSORTIMEOUT="${AIRSENSORTIMEOUT:-0.5}"
+# Mirror air_tx_pi5.py's fallback: if AIRSENSORTIMEOUT is unset, track AIRPERIODS
+# (which itself defaults to 0.5). This keeps the sensor timeout in sync with the
+# loop period so a slower AIRPERIODS does not spam timeouts.
+export AIRSENSORTIMEOUT="${AIRSENSORTIMEOUT:-${AIRPERIODS:-0.5}}"
 
 # Hand control to Python; use exec so signals go straight to it.
 exec "$VENV_PY" air_tx_pi5.py

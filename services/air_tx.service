@@ -14,13 +14,13 @@
 
 [Unit]
 Description=Air-side methane telemetry (RFD900ux)
-After=multi-user.target
+After=local-fs.target
 
 [Service]
 Type=simple
 User=@SERVICE_USER@
-WorkingDirectory=@REPO_DIR@
-ExecStart=@REPO_DIR@/run_air.sh
+WorkingDirectory="@REPO_DIR@"
+ExecStart="@REPO_DIR@/run_air.sh"
 Restart=on-failure
 RestartSec=3
 
