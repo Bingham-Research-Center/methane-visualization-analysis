@@ -4,11 +4,13 @@ Use this once the Pi and RFD900ux hardware arrive.
 
 ## 1) Copy project to Pi
 
-From your laptop (replace `<PI_IP>`):
+From your laptop (replace `<PI_USER>` and `<PI_IP>`):
 
 ```bash
-scp -r methane-visualization-analysis pi@<PI_IP>:/home/pi/
+scp -r methane-visualization-analysis <PI_USER>@<PI_IP>:/home/<PI_USER>/
 ```
+
+The Pi does not need network access after this point.
 
 ## 2) Connect the air-side serial devices
 
@@ -25,7 +27,7 @@ ls /dev/ttyUSB* /dev/ttyACM* /dev/serial* 2>/dev/null
 ```
 
 Recommended mapping:
-- Radio: `/dev/ttyUSB0`
+- Radio: `/dev/ttyUSB0` (auto-detected if absent)
 - Sensor: `/dev/serial0`
 
 Expected sensor input format:
@@ -45,63 +47,53 @@ sudo raspi-config
 - Serial port hardware enabled: `Yes`
 - Reboot after saving
 
-## 4) Install runtime deps on Pi (air side)
+## 4) Install and auto-start the air service
+
+Run the installer once. It creates the venv, installs `pyserial` from the vendored wheels in `vendor/wheels/` (fully offline), registers the systemd service, and starts it:
 
 ```bash
-cd /home/pi/methane-visualization-analysis
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements-air.txt
+cd /home/<PI_USER>/methane-visualization-analysis
+sudo ./install_pi.sh
 ```
 
-## 5) Run air transmitter manually
+Every subsequent reboot auto-runs the air transmitter with no manual steps. Check status at any time:
 
 ```bash
-cd /home/pi/methane-visualization-analysis
-source .venv/bin/activate
-AIRSERIALPORT=/dev/ttyUSB0 AIRSENSORPORT=/dev/serial0 AIRSENSORBAUD=9600 AIRSENSORTIMEOUT=0.5 python3 air_tx_pi5.py
+systemctl status air_tx.service
+journalctl -u air_tx.service -f
 ```
 
-Expected output files:
-- `methane_log.csv` grows locally on Pi
+To override a serial port or baud rate, use `sudo systemctl edit air_tx.service` and add a drop-in `[Service]` section with the `Environment=` lines you need.
 
-## 6) Ground laptop viewer
+## 5) Ground laptop viewer
 
 On your laptop:
 
+**Linux/macOS:**
+
 ```bash
 cd methane-visualization-analysis
-python3 -m venv .venv-ground
-source .venv-ground/bin/activate
-pip install --upgrade pip
-pip install -r requirements-ground.txt
-python3 ground_viewer.py <PORT>
+./run_ground.sh /dev/ttyUSB0
 ```
+
+**Windows PowerShell:**
+
+```powershell
+cd methane-visualization-analysis
+.\run_ground.ps1 -Port COM7
+```
+
+First run creates `.venv-ground` and installs matplotlib + pyserial from PyPI.
 
 Examples for `<PORT>`:
 - Windows: `COM7`
 - Linux: `/dev/ttyUSB0`
 - macOS: `/dev/tty.usbserial-XXXX`
 
-## 7) Optional autostart service on Pi
-
-```bash
-cd /home/pi/methane-visualization-analysis
-sudo cp services/air_tx.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now air_tx.service
-```
-
-Check status:
-
-```bash
-systemctl status air_tx.service
-```
-
-## 8) Quick troubleshooting
+## 6) Quick troubleshooting
 
 - If no telemetry appears, verify the radio is connected on the expected USB serial device.
 - Confirm both the radio and sensor serial devices exist.
 - Keep both radios on same baud and radio params.
 - Ensure antenna is connected before transmit.
+- If `install_pi.sh` reports missing wheels, re-copy the repo from a workstation that has `vendor/wheels/pyserial-*.whl` committed.

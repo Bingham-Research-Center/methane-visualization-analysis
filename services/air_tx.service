@@ -1,20 +1,28 @@
+# Template for the air-side methane telemetry systemd unit.
+#
+# install_pi.sh renders this file into /etc/systemd/system/air_tx.service by
+# substituting @REPO_DIR@ and @SERVICE_USER@ with the actual repo path and the
+# user running the installer. Do not edit the installed copy directly; edit
+# this template and re-run install_pi.sh so the change survives reinstalls.
+#
+# The service invokes run_air.sh, which handles radio auto-detect and env-var
+# defaults. To override any variable at service scope, add a drop-in:
+#   sudo systemctl edit air_tx.service
+# and put, e.g.:
+#   [Service]
+#   Environment=AIRSERIALPORT=/dev/ttyUSB1
+
 [Unit]
 Description=Air-side methane telemetry (RFD900ux)
 After=multi-user.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi
-ExecStart=/usr/bin/python3 /home/pi/air_tx_pi5.py
+User=@SERVICE_USER@
+WorkingDirectory=@REPO_DIR@
+ExecStart=@REPO_DIR@/run_air.sh
 Restart=on-failure
 RestartSec=3
-Environment=AIRSERIALPORT=/dev/ttyUSB0
-Environment=AIRBAUD=57600
-Environment=AIRSENSORPORT=/dev/serial0
-Environment=AIRSENSORBAUD=9600
-Environment=AIRSENSORTIMEOUT=0.5
-Environment=AIRPERIODS=0.5
 
 [Install]
 WantedBy=multi-user.target
