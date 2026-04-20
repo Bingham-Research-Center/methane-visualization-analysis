@@ -19,8 +19,8 @@ After=local-fs.target
 [Service]
 Type=simple
 User=@SERVICE_USER@
-WorkingDirectory="@REPO_DIR@"
-ExecStart="@REPO_DIR@/run_air.sh"
+WorkingDirectory=@REPO_DIR@
+ExecStart=@REPO_DIR@/run_air.sh
 Restart=on-failure
 RestartSec=3
 
