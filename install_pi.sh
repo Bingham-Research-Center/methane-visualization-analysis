@@ -31,6 +31,19 @@ WHEEL_DIR="$REPO_DIR/vendor/wheels"
 SERVICE_TEMPLATE="$REPO_DIR/services/air_tx.service"
 SERVICE_DEST="/etc/systemd/system/air_tx.service"
 
+# systemd's WorkingDirectory does not accept shell-style quoting, so the values
+# get dropped into the unit file as-is. Reject inputs that would make the
+# rendered unit ambiguous or unparseable, rather than shipping a broken unit.
+if [[ "$REPO_DIR" =~ [[:space:]\"\'\\\&] ]]; then
+    echo "Error: repo path contains whitespace or special characters: $REPO_DIR" >&2
+    echo "Move the repo to a path with only letters, digits, dashes, dots, underscores, and slashes." >&2
+    exit 1
+fi
+if [[ "$SERVICE_USER" =~ [[:space:]\"\'\\\&] ]]; then
+    echo "Error: service user contains invalid characters: $SERVICE_USER" >&2
+    exit 1
+fi
+
 # Sanity checks before touching anything.
 if [[ ! -f "$REPO_DIR/air_tx_pi5.py" ]]; then
     echo "Error: air_tx_pi5.py not found in $REPO_DIR" >&2
@@ -69,7 +82,7 @@ echo "Rendering systemd unit to $SERVICE_DEST ..."
 template_content="$(<"$SERVICE_TEMPLATE")"
 rendered="${template_content//@REPO_DIR@/$REPO_DIR}"
 rendered="${rendered//@SERVICE_USER@/$SERVICE_USER}"
-printf '%s' "$rendered" > "$SERVICE_DEST"
+printf '%s\n' "$rendered" > "$SERVICE_DEST"
 chmod 644 "$SERVICE_DEST"
 
 # 4) Make sure run_air.sh is executable (git may not preserve the bit on some copy flows).
